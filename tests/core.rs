@@ -294,7 +294,7 @@ fn running_container_can_be_cancelled() {
         &cancel,
     );
     thread.join().unwrap();
-    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().to_string(), "Cancelled");
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
 }
 

@@ -274,6 +274,56 @@ impl Provider for Codex {
 mod tests {
     use super::*;
     #[test]
+    fn generation_schema_requires_every_field_and_nonempty_examples() {
+        fn check_objects(value: &serde_json::Value) {
+            match value {
+                serde_json::Value::Object(object) => {
+                    if object.get("type").and_then(|v| v.as_str()) == Some("object") {
+                        assert_eq!(object["additionalProperties"], false);
+                        let required = object["required"].as_array().unwrap();
+                        for key in object["properties"].as_object().unwrap().keys() {
+                            assert!(
+                                required.iter().any(|value| value == key),
+                                "missing required {key}"
+                            );
+                        }
+                    }
+                    for value in object.values() {
+                        check_objects(value);
+                    }
+                }
+                serde_json::Value::Array(values) => {
+                    for value in values {
+                        check_objects(value);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let schema = serde_json::to_value(generation_schema()).unwrap();
+        check_objects(&schema);
+        assert_eq!(schema["properties"]["examples"]["minItems"], 1);
+        assert_eq!(schema["properties"]["examples"]["maxItems"], 3);
+        assert!(schema["properties"]["examples"].get("default").is_none());
+    }
+
+    #[test]
+    fn rejected_schema_is_actionable_and_not_retried_or_leaked() {
+        let failure = serde_json::json!({"type":"turn.failed", "error":{"message": "invalid_json_schema: Missing 'examples'."}});
+        let output = process::Output {
+            code: Some(1),
+            stdout: failure.to_string(),
+            stderr: String::new(),
+            text: "unrevealed reference implementation".into(),
+        };
+        let error = generation_failure(&output);
+        assert!(error.to_string().contains("invalid_json_schema"));
+        assert!(!error.to_string().contains("codex login"));
+        assert!(!error.to_string().contains("unrevealed"));
+        assert!(!retryable(&error));
+    }
+
+    #[test]
     fn child_environment_only_contains_login_and_system_allowlist() {
         let cmd = command();
         let names: Vec<_> = cmd

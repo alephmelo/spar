@@ -381,6 +381,9 @@ impl ContainerEngine {
             Duration::from_secs(10),
             &process::cancel_token(),
         );
+        // Explicit cancellation is control flow, not a failed learner check.
+        // Cleanup must finish before returning; timeouts still retain diagnostics.
+        process::cancelled(cancel)?;
         let output = match result {
             Ok(output) => output,
             Err(error) => {
