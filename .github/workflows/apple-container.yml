@@ -1,0 +1,16 @@
+name: Check Apple container
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  containers:
+    # Use a dedicated Apple silicon Mac with macOS 26+, Rust, and container installed.
+    runs-on: [self-hosted, macOS, ARM64, spar-container]
+    timeout-minutes: 20
+    env:
+      SPAR_RUNNER: apple
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo run --locked -- setup
+      - run: cargo test --locked -- --ignored --test-threads=1

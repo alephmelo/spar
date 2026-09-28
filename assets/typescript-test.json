@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "title": "Catch the expiration bug",
+  "language": "typescript",
+  "mode": "test",
+  "skill": "boundaries",
+  "family": "cache-expiration",
+  "minutes": 5,
+  "brief": "A cache entry is live strictly before its expiration time. Implement solve(value), returning live entry keys in input order. value contains now (integer) and entries (an array of {key: string, created: integer, ttl: nonnegative integer}). All numbers are safe integers. Entries expire at created + ttl, including the exact boundary. There are at most 100 entries. Do not mutate the input. Write tests that accept the correct implementation and catch an expiration boundary bug. The implementation is read-only.",
+  "requirements": [
+    {
+      "id": "R1",
+      "description": "Return live keys in input order; preserve input."
+    },
+    {
+      "id": "R2",
+      "description": "An entry is expired when now >= created + ttl; ttl 0 expires immediately."
+    },
+    {
+      "id": "R3",
+      "description": "An empty cache returns an empty list."
+    }
+  ],
+  "starter": "export function solve(value: any): string[] {\n  return value.entries\n    .filter((entry: any) => value.now < entry.created + entry.ttl)\n    .map((entry: any) => entry.key);\n}\n",
+  "visible_tests": "assert.deepEqual(solve({\"now\": 14, \"entries\": [{\"key\": \"tea\", \"created\": 10, \"ttl\": 5}]}), [\"tea\"]);\n",
+  "checks": [
+    {
+      "requirement": "R1",
+      "code": "assert.deepEqual(solve({\"now\": 14, \"entries\": [{\"key\": \"tea\", \"created\": 10, \"ttl\": 5}]}), [\"tea\"]);\nconst value = {now: 12, entries: [{key: \"b\", created: 10, ttl: 5}, {key: \"a\", created: 11, ttl: 2}]};\nconst before = structuredClone(value);\nassert.deepEqual(solve(value), [\"b\", \"a\"]);\nassert.deepEqual(value, before);"
+    },
+    {
+      "requirement": "R2",
+      "code": "assert.deepEqual(solve({\"now\": 15, \"entries\": [{\"key\": \"tea\", \"created\": 10, \"ttl\": 5}]}), []);\nassert.deepEqual(solve({\"now\": 16, \"entries\": [{\"key\": \"tea\", \"created\": 10, \"ttl\": 5}]}), []);\nassert.deepEqual(solve({\"now\": 10, \"entries\": [{\"key\": \"zero\", \"created\": 10, \"ttl\": 0}]}), []);"
+    },
+    {
+      "requirement": "R3",
+      "code": "assert.deepEqual(solve({\"now\": 0, \"entries\": []}), []);"
+    }
+  ],
+  "hints": [
+    "Think about the last instant at which an entry is still live.",
+    "Try a test with now exactly equal to created + ttl.",
+    "The live condition is now < created + ttl. Equality means expired."
+  ],
+  "reference": "export function solve(value: any): string[] {\n  return value.entries\n    .filter((entry: any) => value.now < entry.created + entry.ttl)\n    .map((entry: any) => entry.key);\n}\n",
+  "reference_tests": "assert.deepEqual(solve({\"now\": 14, \"entries\": [{\"key\": \"tea\", \"created\": 10, \"ttl\": 5}]}), [\"tea\"]);\nassert.deepEqual(solve({\"now\": 15, \"entries\": [{\"key\": \"tea\", \"created\": 10, \"ttl\": 5}]}), []);\nassert.deepEqual(solve({\"now\": 16, \"entries\": [{\"key\": \"tea\", \"created\": 10, \"ttl\": 5}]}), []);\nassert.deepEqual(solve({\"now\": 0, \"entries\": []}), []);\n",
+  "mutants": [
+    {
+      "requirement": "R2",
+      "code": "export function solve(value: any): string[] {\n  return value.entries\n    .filter((entry: any) => value.now <= entry.created + entry.ttl)\n    .map((entry: any) => entry.key);\n}\n"
+    }
+  ],
+  "explanation": "Expiration defines an exclusive upper bound. Comparing now with created + ttl using < makes equality expired, handles a zero TTL, and keeps the live interval precise. A regression test at the exact boundary distinguishes < from <=.",
+  "examples": [
+    {
+      "input_json": "{\"now\":14,\"entries\":[{\"key\":\"tea\",\"created\":10,\"ttl\":5}]}",
+      "output_json": "[\"tea\"]",
+      "explanation": "The entry is still live one second before expiration."
+    },
+    {
+      "input_json": "{\"now\":16,\"entries\":[{\"key\":\"tea\",\"created\":10,\"ttl\":5}]}",
+      "output_json": "[]",
+      "explanation": "The entry has expired, so no keys are returned."
+    }
+  ]
+}

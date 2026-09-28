@@ -1,0 +1,31 @@
+[package]
+name = "spar"
+version = "0.1.0"
+edition = "2024"
+description = "Your agent sets the challenge. You write the code."
+publish = false
+
+[dependencies]
+anyhow = "1"
+arboard = { version = "3", default-features = false }
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.29"
+ctrlc = "3"
+directories = "6"
+libc = "0.2"
+ratatui = { version = "0.30.2", features = ["unstable-rendered-line-info"] }
+edtui = { version = "0.11.7", default-features = false, features = ["mouse-support"] }
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+shell-words = "1"
+tempfile = "3"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 1

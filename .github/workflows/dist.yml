@@ -1,0 +1,28 @@
+name: Build standalone binaries
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - run: tar -czf spar-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release spar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spar-${{ matrix.target }}
+          path: spar-${{ matrix.target }}.tar.gz
