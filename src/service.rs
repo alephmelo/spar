@@ -50,13 +50,19 @@ pub fn prepare(
     let provenance = if offline {
         "bundled-v2".to_owned()
     } else {
-        format!("codex-cli; requested {}", codex.settings.summary())
+        format!(
+            "codex-cli; {}; requested {}",
+            crate::generation::CONTRACT_VERSION,
+            codex.settings.summary()
+        )
     };
     let mut history = store.observations(&profile.name)?;
+    let mut recent = store.recent_reps(&profile.name)?;
     let mut admitted = 0;
     for i in 0..count {
         process::cancelled(cancel)?;
-        let objective = scheduler::select(profile, &history);
+        let mut objective = scheduler::select(profile, &history);
+        scheduler::vary(&mut objective, profile, &recent);
         let mut last = String::new();
         for _ in 0..if offline { 1 } else { 2 } {
             status(if offline {
@@ -70,7 +76,12 @@ pub fn prepare(
                     [Mode::Debug, Mode::Build, Mode::Test][i % 3],
                 ))
             } else {
-                codex.generate(profile, &objective, cancel)
+                codex.generate(
+                    profile,
+                    &objective,
+                    (!last.is_empty()).then_some(last.as_str()),
+                    cancel,
+                )
             };
             match candidate.and_then(|rep| {
                 status("Checking reference, starter, and negative implementations");
@@ -89,6 +100,14 @@ pub fn prepare(
                             engine.name()
                         ),
                     )?;
+                    recent.insert(
+                        0,
+                        scheduler::RecentRep {
+                            family: rep.family.clone(),
+                            mode: rep.mode,
+                            design: rep.design,
+                        },
+                    );
                     history.insert(
                         0,
                         crate::model::Observation {

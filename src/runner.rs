@@ -478,16 +478,7 @@ fn examples(rep: &Rep) -> Vec<(String, String)> {
         .iter()
         .enumerate()
         .map(|(i, example)| {
-            let input = serde_json::to_string(&example.input_json).expect("string JSON encoding");
-            let output = serde_json::to_string(&example.output_json).expect("string JSON encoding");
-            let code = match rep.language {
-                Language::Python => format!(
-                    "import json\nassert solve(json.loads({input})) == json.loads({output})"
-                ),
-                Language::Typescript => {
-                    format!("assert.deepEqual(solve(JSON.parse({input})), JSON.parse({output}));")
-                }
-            };
+            let code = example.assertion(rep.language);
             (format!("Example {}", i + 1), code)
         })
         .collect()

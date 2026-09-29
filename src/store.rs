@@ -140,6 +140,22 @@ impl Store {
         self.db.prepare("SELECT id,json FROM reps WHERE profile=?1 AND state='ready' ORDER BY created,rowid")?.query_map([profile], |r| Ok((r.get::<_, String>(0)?,r.get::<_, String>(1)?)))?
             .map(|r| { let (id,json)=r?; Ok((id,serde_json::from_str(&json)?)) }).collect()
     }
+    pub fn recent_reps(&self, profile: &str) -> Result<Vec<crate::scheduler::RecentRep>> {
+        self.db
+            .prepare(
+                "SELECT json FROM reps WHERE profile=?1 ORDER BY created DESC,rowid DESC LIMIT 12",
+            )?
+            .query_map([profile], |row| row.get::<_, String>(0))?
+            .map(|row| {
+                let rep: Rep = serde_json::from_str(&row?)?;
+                Ok(crate::scheduler::RecentRep {
+                    family: rep.family,
+                    mode: rep.mode,
+                    design: rep.design,
+                })
+            })
+            .collect()
+    }
     pub fn rep(&self, id: &str) -> Result<Rep> {
         let json: String = self
             .db

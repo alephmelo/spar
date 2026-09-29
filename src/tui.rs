@@ -1,5 +1,5 @@
 use crate::{
-    model::{Attempt, Mode, Profile, Rep},
+    model::{Attempt, Language, Mode, Profile, Rep},
     process::{self, Cancel},
     runner::{self, ContainerEngine, Evaluation},
     service,
@@ -1188,6 +1188,7 @@ impl App {
                 || line.starts_with("HINT ")
                 || line.starts_with("EXAMPLE")
                 || line == "YOUR TASK"
+                || matches!(line, "INTERFACE" | "INPUT" | "OUTPUT" | "CONSTRAINTS")
             {
                 lines.push(Line::styled(
                     line.to_owned(),
@@ -1285,7 +1286,7 @@ impl App {
     }
     fn brief(&self) -> String {
         let Some(rep) = &self.rep else {
-            return "\nYour agent sets the challenge. You write the code.\n\nPreparing one small, useful decision.\n\nGeneration uses your Codex allowance and sends only your selected profile and recent rep families.\n\nIf setup is incomplete, run spar doctor or spar setup.\nF6 retries. Ctrl+Q saves and closes.".into();
+            return "\nYour agent sets the challenge. You write the code.\n\nPreparing one small, useful decision.\n\nGeneration uses your Codex allowance and sends only your selected profile, recent rep families and exercise feedback.\n\nIf setup is incomplete, run spar doctor or spar setup.\nF6 retries. Ctrl+Q saves and closes.".into();
         };
         let mut text = String::new();
         if let Some(a) = &self.attempt
@@ -1321,7 +1322,10 @@ impl App {
         } else {
             "Write your own assertions in Tests.\n"
         });
-        text.push_str("Python: assert solve(value) == expected\nTypeScript: assert.deepEqual(solve(value), expected);\nF5 runs checks. print / console.log output appears in Output.\n");
+        text.push_str(match rep.language {
+            Language::Python => "assert solve(value) == expected\nF5 runs checks. print output appears in Output.\n",
+            Language::Typescript => "assert.deepEqual(solve(value), expected);\nF5 runs checks. console.log output appears in Output.\n",
+        });
         if rep.mode == Mode::Test {
             text.push_str(
                 "\nCode is read-only for this rep. Add tests that catch the hidden bugs.\n",

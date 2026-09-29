@@ -136,7 +136,7 @@ fn init(
     };
     store.save_profile(&p)?;
     println!(
-        "\nProfile saved. Generation sends your selected profile and recent exercise families to Codex,\nusing your existing ChatGPT login and normal Codex allowance. Your code stays local.\n\nNext: `spar setup`, then `spar`. Try `spar demo` to preview the editor.\n"
+        "\nProfile saved. Generation sends your selected profile, recent exercise families and exercise feedback to Codex,\nusing your existing ChatGPT login and normal Codex allowance. Your code stays local.\n\nNext: `spar setup`, then `spar`. Try `spar demo` to preview the editor.\n"
     );
     Ok(p)
 }

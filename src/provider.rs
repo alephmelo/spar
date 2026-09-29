@@ -1,5 +1,6 @@
 use crate::{
     config::GenerationSettings,
+    generation::GeneratedRep,
     model::{Profile, Rep},
     process::{self, Cancel},
     scheduler::Objective,
@@ -9,7 +10,13 @@ use std::{process::Command, time::Duration};
 
 pub trait Provider: Send + Sync {
     fn check(&self, cancel: &Cancel) -> Result<String>;
-    fn generate(&self, profile: &Profile, objective: &Objective, cancel: &Cancel) -> Result<Rep>;
+    fn generate(
+        &self,
+        profile: &Profile,
+        objective: &Objective,
+        feedback: Option<&str>,
+        cancel: &Cancel,
+    ) -> Result<Rep>;
 }
 
 #[derive(Default)]
@@ -17,24 +24,12 @@ pub struct Codex {
     pub settings: GenerationSettings,
 }
 
-/// Generation describes a complete new package. The deserialization schema also
-/// accepts old cached packages and therefore has optional migration fields.
+/// Generation has a dedicated strict contract; cached v1/v2 reps keep their reader.
 pub fn generation_schema() -> schemars::Schema {
-    let mut schema = schemars::generate::SchemaSettings::default()
+    schemars::generate::SchemaSettings::default()
         .for_serialize()
         .into_generator()
-        .into_root_schema_for::<Rep>();
-    // The empty default is solely for migrating local v1 packages. It is not
-    // a valid example list for new packages and must not be suggested to Codex.
-    if let Some(examples) = schema
-        .as_object_mut()
-        .and_then(|root| root.get_mut("properties"))
-        .and_then(|properties| properties.get_mut("examples"))
-        .and_then(serde_json::Value::as_object_mut)
-    {
-        examples.remove("default");
-    }
-    schema
+        .into_root_schema_for::<GeneratedRep>()
 }
 
 #[derive(Debug)]
@@ -226,7 +221,13 @@ impl Provider for Codex {
         );
         Ok("Codex CLI · ChatGPT login".into())
     }
-    fn generate(&self, profile: &Profile, objective: &Objective, cancel: &Cancel) -> Result<Rep> {
+    fn generate(
+        &self,
+        profile: &Profile,
+        objective: &Objective,
+        feedback: Option<&str>,
+        cancel: &Cancel,
+    ) -> Result<Rep> {
         self.check(cancel).map_err(|error| GenerationFailure {
             message: error.to_string(),
             retryable: false,
@@ -236,10 +237,13 @@ impl Provider for Codex {
         let output = dir.path().join("rep.json");
         std::fs::write(&schema, serde_json::to_vec(&generation_schema())?)?;
         let prompt = format!(
-            "{}\nPROFILE:\n{}\nOBJECTIVE:\n{}",
+            "{}\nREQUEST DATA:\n{}",
             include_str!("../assets/generation.txt"),
-            serde_json::to_string(profile)?,
-            serde_json::to_string(objective)?
+            serde_json::to_string(&serde_json::json!({
+                "profile": profile,
+                "objective": objective,
+                "previous_validation_failure": feedback,
+            }))?
         );
         let mut cmd = command();
         // Pass values as distinct arguments, never through a shell or the prompt.
@@ -277,21 +281,28 @@ impl Provider for Codex {
                 <= 64_000,
             "Generated rep exceeds size limit"
         );
-        let rep: Rep = serde_json::from_slice(&std::fs::read(&output)?)
-            .context("Codex returned an invalid exercise package")?;
-        rep.validate()?;
-        ensure!(
-            rep.version == 2,
-            "Generated rep must include structured examples (format v2)"
-        );
-        ensure!(
-            rep.language == profile.language
-                && rep.skill == objective.skill
-                && rep.mode == objective.mode
-                && rep.minutes <= profile.minutes,
-            "Generated rep does not match the scheduled objective"
-        );
-        Ok(rep)
+        let generated: GeneratedRep =
+            serde_json::from_slice(&std::fs::read(&output)?).map_err(|error| {
+                // Serde errors can quote response values, including hidden solutions.
+                // Report only our known validation categories and the location.
+                let message = error.to_string();
+                let category = [
+                    "Invalid Title",
+                    "Invalid Prose",
+                    "Invalid Family",
+                    "Invalid Source",
+                    "Invalid JsonText",
+                ]
+                .into_iter()
+                .find(|category| message.starts_with(category))
+                .unwrap_or("Missing, unknown, or incorrectly typed field");
+                anyhow::anyhow!(
+                    "Invalid generation contract: {category} at line {}, column {}",
+                    error.line(),
+                    error.column()
+                )
+            })?;
+        generated.into_rep(profile, objective)
     }
 }
 

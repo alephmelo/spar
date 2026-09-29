@@ -93,6 +93,23 @@ pub struct Example {
     pub explanation: String,
 }
 
+impl Example {
+    /// App-owned assertions preserve JSON type distinctions (Python treats True == 1).
+    pub(crate) fn assertion(&self, language: Language) -> String {
+        let input = serde_json::to_string(&self.input_json).expect("string JSON encoding");
+        let output = serde_json::to_string(&self.output_json).expect("string JSON encoding");
+        match language {
+            Language::Python => format!(
+                "{}\nassert _spar_json_equal(solve(json.loads({input})), json.loads({output}))",
+                include_str!("../runners/json_equal.py")
+            ),
+            Language::Typescript => {
+                format!("assert.deepEqual(solve(JSON.parse({input})), JSON.parse({output}));")
+            }
+        }
+    }
+}
+
 /// Code is content only. File names and all execution commands belong to adapters.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -117,6 +134,9 @@ pub struct Rep {
     pub reference_tests: String,
     pub mutants: Vec<Mutant>,
     pub explanation: String,
+    /// App-selected variety metadata; absent in older cached packages.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design: Option<crate::scheduler::RepDesign>,
 }
 
 impl Rep {
