@@ -1,4 +1,7 @@
-use crate::model::{Attempt, Observation, Profile, Rep};
+use crate::{
+    config::GenerationSettings,
+    model::{Attempt, Observation, Profile, Rep},
+};
 use anyhow::{Context, Result, ensure};
 use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -35,6 +38,34 @@ impl Store {
             db,
         })
     }
+    pub fn generation_settings(&self) -> Result<GenerationSettings> {
+        let json: Option<String> = self
+            .db
+            .query_row(
+                "SELECT value FROM settings WHERE key='generation'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let settings: GenerationSettings = match json {
+            Some(json) => {
+                serde_json::from_str(&json).context("Invalid saved generation settings")?
+            }
+            None => GenerationSettings::default(),
+        };
+        settings.validate()?;
+        Ok(settings)
+    }
+
+    pub fn save_generation_settings(&self, settings: &GenerationSettings) -> Result<()> {
+        settings.validate()?;
+        self.db.execute(
+            "INSERT INTO settings (key,value) VALUES ('generation',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            [serde_json::to_string(settings)?],
+        )?;
+        Ok(())
+    }
+
     pub fn save_profile(&self, p: &Profile) -> Result<()> {
         ensure!(
             !p.name.trim().is_empty() && p.name.len() <= 80,

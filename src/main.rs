@@ -54,6 +54,13 @@ enum Commands {
     Setup,
     /// Check generation authentication and isolated runtimes.
     Doctor,
+    /// Show or save generation settings shared by all profiles in this data directory.
+    Config {
+        #[arg(long, help = "Codex model ID; use 'default' to clear the override")]
+        model: Option<String>,
+        #[arg(long, value_parser = ["default", "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"], help = "Reasoning effort (support depends on model/client); 'default' clears the override")]
+        effort: Option<String>,
+    },
     /// Show observed practice; no proficiency scores.
     History,
     /// Revisit a completed rep with a fresh attempt, without an AI call.
@@ -212,10 +219,12 @@ fn main() -> Result<()> {
         }
         Some(Commands::Doctor) => {
             println!("Data: {}", store.root.display());
+            let settings = store.generation_settings()?;
+            println!("Generation (requested): {}", settings.summary());
             println!("Runner: {}", ContainerEngine::configured()?.name());
             println!(
                 "{}",
-                Codex
+                Codex { settings }
                     .check(&cancel)
                     .unwrap_or_else(|e| format!("Codex: {e}"))
             );
@@ -228,6 +237,27 @@ fn main() -> Result<()> {
                         .unwrap_or_else(|e| e.to_string())
                 );
             }
+        }
+        Some(Commands::Config { model, effort }) => {
+            let mut settings = store.generation_settings()?;
+            let changed = model.is_some() || effort.is_some();
+            if let Some(model) = model {
+                let model = model.trim();
+                settings.model = (model != "default").then(|| model.to_owned());
+            }
+            if let Some(effort) = effort {
+                settings.effort = (effort != "default").then_some(effort);
+            }
+            if changed {
+                store.save_generation_settings(&settings)?;
+            }
+            println!("Generation settings · {}", store.root.display());
+            println!("Model: {}", settings.model_label());
+            println!("Reasoning effort: {}", settings.effort_label());
+            println!(
+                "Applies to new generation across all profiles here. Cached reps keep their original settings."
+            );
+            println!("Model access and effort support are checked by Codex during generation.");
         }
         Some(Commands::History) => {
             let p = profile(&store)?;

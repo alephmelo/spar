@@ -8,10 +8,62 @@ use edtui::{
 };
 use ratatui::{prelude::*, widgets::Block};
 use std::sync::LazyLock;
-use syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet};
+use syntect::{
+    easy::HighlightLines,
+    highlighting::{
+        Color as SyntaxColor, FontStyle, StyleModifier, Theme, ThemeItem, ThemeSettings,
+    },
+    parsing::SyntaxSet,
+};
 
 static SYNTAXES: LazyLock<SyntaxSet> = LazyLock::new(two_face::syntax::extra_newlines);
-static THEMES: LazyLock<ThemeSet> = LazyLock::new(ThemeSet::load_defaults);
+static THEME: LazyLock<Theme> = LazyLock::new(|| {
+    let gray = |value| SyntaxColor {
+        r: value,
+        g: value,
+        b: value,
+        a: 255,
+    };
+    // Deliberate scope styles retain syntax distinctions without relying on hue.
+    let rules = [
+        ("punctuation", 176, FontStyle::empty()),
+        ("string", 192, FontStyle::empty()),
+        ("constant, support.constant", 240, FontStyle::BOLD),
+        (
+            "entity.name.function, entity.name.type, support.function, support.type",
+            240,
+            FontStyle::BOLD,
+        ),
+        ("variable.parameter", 224, FontStyle::ITALIC),
+        ("keyword, storage", 255, FontStyle::BOLD),
+        ("keyword.operator", 208, FontStyle::empty()),
+        (
+            "comment, punctuation.definition.comment",
+            152,
+            FontStyle::ITALIC,
+        ),
+    ];
+    Theme {
+        name: Some("Spar grayscale".into()),
+        settings: ThemeSettings {
+            foreground: Some(gray(224)),
+            background: Some(gray(0)),
+            ..ThemeSettings::default()
+        },
+        scopes: rules
+            .into_iter()
+            .map(|(scope, brightness, font_style)| ThemeItem {
+                scope: scope.parse().expect("valid bundled syntax scope"),
+                style: StyleModifier {
+                    foreground: Some(gray(brightness)),
+                    font_style: Some(font_style),
+                    ..StyleModifier::default()
+                },
+            })
+            .collect(),
+        ..Theme::default()
+    }
+});
 const MAX_SOURCE: usize = 32_000;
 
 #[derive(Clone)]
@@ -374,7 +426,7 @@ impl CodeEditor {
         let syntax = SYNTAXES
             .find_syntax_by_extension(extension)
             .unwrap_or_else(|| SYNTAXES.find_syntax_plain_text());
-        let mut parser = HighlightLines::new(syntax, &THEMES.themes["base16-ocean.dark"]);
+        let mut parser = HighlightLines::new(syntax, &THEME);
         self.syntax.clear();
         // Keep parser state across lines: triple-quoted strings, block comments and
         // template literals must retain their scopes. Only rebuild after source changes.
@@ -384,14 +436,27 @@ impl CodeEditor {
                 for (style, token) in tokens {
                     let len = token.trim_end_matches('\n').chars().count();
                     if len > 0 {
+                        let mut modifiers = Modifier::empty();
+                        for (syntax, terminal) in [
+                            (FontStyle::BOLD, Modifier::BOLD),
+                            (FontStyle::ITALIC, Modifier::ITALIC),
+                            (FontStyle::UNDERLINE, Modifier::UNDERLINED),
+                        ] {
+                            if style.font_style.contains(syntax) {
+                                modifiers.insert(terminal);
+                            }
+                        }
                         self.syntax.push(Highlight::new(
                             Index2::new(row, col),
                             Index2::new(row, col + len - 1),
-                            Style::default().fg(Color::Rgb(
-                                style.foreground.r,
-                                style.foreground.g,
-                                style.foreground.b,
-                            )),
+                            Style::default()
+                                .fg(Color::Rgb(
+                                    style.foreground.r,
+                                    style.foreground.g,
+                                    style.foreground.b,
+                                ))
+                                .bg(BG)
+                                .add_modifier(modifiers),
                         ));
                         col += len;
                     }
@@ -409,13 +474,6 @@ impl CodeEditor {
         readonly: bool,
     ) {
         self.state.highlights.clone_from(&self.syntax);
-        if active {
-            for token in &mut self.state.highlights {
-                if token.start.row == self.state.cursor.row {
-                    token.style = token.style.bg(Color::Rgb(34, 43, 42));
-                }
-            }
-        }
         let (row, col) = self.cursor();
         let label = if readonly {
             "read-only"
@@ -436,13 +494,9 @@ impl CodeEditor {
             .block(block)
             .hide_status_line()
             .line_numbers_style(Style::default().fg(MUTED).bg(PANEL))
-            .selection_style(Style::default().bg(Color::Rgb(62, 78, 86)))
+            .selection_style(Style::default().fg(BG).bg(Color::Rgb(208, 208, 208)))
             .cursor_style(if active && !readonly {
-                if std::env::var("NO_COLOR").is_ok_and(|value| !value.is_empty()) {
-                    Style::default().add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default().fg(BG).bg(ACCENT)
-                }
+                Style::default().fg(BG).bg(ACCENT)
             } else {
                 Style::default()
             });

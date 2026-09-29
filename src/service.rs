@@ -35,6 +35,23 @@ pub fn prepare(
     );
     let engine = ContainerEngine::configured()?;
     engine.available(profile.language, cancel)?;
+    // Snapshot the requested settings for this batch, including background TUI jobs.
+    let codex = Codex {
+        settings: if offline {
+            Default::default()
+        } else {
+            store.generation_settings()?
+        },
+    };
+    let generation_status = format!(
+        "Generating exercise · {} · uses your Codex allowance",
+        codex.settings.summary()
+    );
+    let provenance = if offline {
+        "bundled-v2".to_owned()
+    } else {
+        format!("codex-cli; requested {}", codex.settings.summary())
+    };
     let mut history = store.observations(&profile.name)?;
     let mut admitted = 0;
     for i in 0..count {
@@ -45,7 +62,7 @@ pub fn prepare(
             status(if offline {
                 "Checking bundled exercise"
             } else {
-                "Generating exercise · uses your Codex allowance"
+                &generation_status
             });
             let candidate = if offline {
                 Ok(bundled(
@@ -53,7 +70,7 @@ pub fn prepare(
                     [Mode::Debug, Mode::Build, Mode::Test][i % 3],
                 ))
             } else {
-                Codex.generate(profile, &objective, cancel)
+                codex.generate(profile, &objective, cancel)
             };
             match candidate.and_then(|rep| {
                 status("Checking reference, starter, and negative implementations");
@@ -67,7 +84,7 @@ pub fn prepare(
                         &rep,
                         &format!(
                             "{}; schema-v{}; {} validated",
-                            if offline { "bundled-v2" } else { "codex-cli" },
+                            provenance,
                             rep.version,
                             engine.name()
                         ),

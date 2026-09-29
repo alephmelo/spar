@@ -1,4 +1,5 @@
 use crate::{
+    config::GenerationSettings,
     model::{Profile, Rep},
     process::{self, Cancel},
     scheduler::Objective,
@@ -11,7 +12,10 @@ pub trait Provider: Send + Sync {
     fn generate(&self, profile: &Profile, objective: &Objective, cancel: &Cancel) -> Result<Rep>;
 }
 
-pub struct Codex;
+#[derive(Default)]
+pub struct Codex {
+    pub settings: GenerationSettings,
+}
 
 /// Generation describes a complete new package. The deserialization schema also
 /// accepts old cached packages and therefore has optional migration fields.
@@ -116,7 +120,16 @@ fn generation_failure(output: &process::Output) -> anyhow::Error {
         "does not exist or you do not have access",
     ]) {
         (
-            "Codex’s default model is unavailable for this account. Update the Codex CLI and retry.",
+            "The requested Codex model is unavailable for this account. Check `spar config` and choose an available model, or update the Codex CLI.",
+            false,
+        )
+    } else if has(&[
+        "reasoning_effort",
+        "reasoning effort",
+        "model_reasoning_effort",
+    ]) {
+        (
+            "Codex rejected the reasoning effort. Choose a level supported by your model with `spar config --effort LEVEL`, or use `--effort default`.",
             false,
         )
     } else if has(&[
@@ -135,7 +148,7 @@ fn generation_failure(output: &process::Output) -> anyhow::Error {
         )
     } else if has(&["invalid_request_error", "400 bad request"]) {
         (
-            "Codex rejected the generation request (invalid_request_error). Update Spar and the Codex CLI.",
+            "Codex rejected the generation request (invalid_request_error). Check `spar config` and update Spar and the Codex CLI.",
             false,
         )
     } else {
@@ -174,6 +187,7 @@ fn command() -> Command {
 
 impl Provider for Codex {
     fn check(&self, cancel: &Cancel) -> Result<String> {
+        self.settings.validate()?;
         let help = process::run(
             command().args(["exec", "--help"]),
             None,
@@ -190,6 +204,8 @@ impl Provider for Codex {
             "--json",
             "--output-schema",
             "--output-last-message",
+            "--model",
+            "--config",
         ] {
             ensure!(help.text.contains(flag), "Update Codex CLI: missing {flag}");
         }
@@ -226,6 +242,8 @@ impl Provider for Codex {
             serde_json::to_string(objective)?
         );
         let mut cmd = command();
+        // Pass values as distinct arguments, never through a shell or the prompt.
+        // These explicit overrides work while unrelated user config stays disabled.
         cmd.current_dir(dir.path())
             .args([
                 "exec",
@@ -239,8 +257,15 @@ impl Provider for Codex {
             ])
             .arg(&schema)
             .arg("--output-last-message")
-            .arg(&output)
-            .arg("-");
+            .arg(&output);
+        if let Some(model) = &self.settings.model {
+            cmd.arg("--model").arg(model);
+        }
+        if let Some(effort) = &self.settings.effort {
+            cmd.arg("--config")
+                .arg(format!("model_reasoning_effort=\"{effort}\""));
+        }
+        cmd.arg("-");
         let result = process::run(&mut cmd, Some(&prompt), Duration::from_secs(180), cancel)?;
         if result.code != Some(0) {
             return Err(generation_failure(&result));

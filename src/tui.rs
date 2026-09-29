@@ -32,16 +32,16 @@ use std::{
     time::{Duration, Instant},
 };
 
-const BG: Color = Color::Rgb(18, 22, 24);
-const PANEL: Color = Color::Rgb(25, 30, 32);
-const INK: Color = Color::Rgb(220, 224, 212);
-const MUTED: Color = Color::Rgb(137, 151, 147);
-const ACCENT: Color = Color::Rgb(198, 219, 139);
-const EDGE: Color = Color::Rgb(57, 69, 66);
-const SUCCESS: Color = Color::Rgb(152, 195, 121);
-const WARNING: Color = Color::Rgb(229, 183, 112);
-const ERROR: Color = Color::Rgb(224, 126, 134);
-const BLUE: Color = Color::Rgb(133, 184, 205);
+const BG: Color = Color::Rgb(0, 0, 0);
+const PANEL: Color = BG;
+const INK: Color = Color::Rgb(224, 224, 224);
+const MUTED: Color = Color::Rgb(160, 160, 160);
+const ACCENT: Color = Color::Rgb(255, 255, 255);
+const EDGE: Color = Color::Rgb(96, 96, 96);
+const SUCCESS: Color = Color::Rgb(224, 224, 224);
+const WARNING: Color = Color::Rgb(240, 240, 240);
+const ERROR: Color = Color::Rgb(255, 255, 255);
+const INFO: Color = Color::Rgb(208, 208, 208);
 
 enum Message {
     Status(String),
@@ -974,7 +974,7 @@ impl App {
                     ),
                     Line::styled(
                         assistance,
-                        Style::default().fg(if self.done() { SUCCESS } else { BLUE }),
+                        Style::default().fg(if self.done() { SUCCESS } else { INFO }),
                     ),
                 ])
                 .right_aligned(),
@@ -1198,7 +1198,7 @@ impl App {
                 && id[1..].chars().all(|c| c.is_ascii_digit())
             {
                 lines.push(Line::from(vec![
-                    Span::styled(format!("{id}  "), Style::default().fg(BLUE).bold()),
+                    Span::styled(format!("{id}  "), Style::default().fg(INFO).bold()),
                     Span::raw(description.to_owned()),
                 ]));
             } else {
@@ -1218,7 +1218,7 @@ impl App {
         if let Some(result) = &self.result {
             for check in &result.checks {
                 for (label, content, color) in [
-                    ("stdout", &check.stdout, BLUE),
+                    ("stdout", &check.stdout, INFO),
                     ("stderr", &check.stderr, WARNING),
                     ("error", &check.detail, ERROR),
                 ] {
@@ -1274,7 +1274,7 @@ impl App {
                     } else if line.contains("checks passed") || line.starts_with("Previous run") {
                         Style::default().fg(WARNING).bold()
                     } else if line.starts_with("REFERENCE") {
-                        Style::default().fg(BLUE).bold()
+                        Style::default().fg(INFO).bold()
                     } else {
                         Style::default().fg(INK)
                     };
@@ -1409,6 +1409,16 @@ impl App {
 pub fn run(store: &mut Store, profile: Profile, demo: bool) -> Result<()> {
     let mut app = App::new(profile, demo);
     app.next(store)?;
+    // Grayscale still needs ANSI color sequences to set luminance and true black.
+    // Keep this override inside the TUI; CLI output and child environments are unchanged.
+    struct Grayscale(bool);
+    impl Drop for Grayscale {
+        fn drop(&mut self) {
+            crossterm::style::Colored::set_ansi_color_disabled(self.0);
+        }
+    }
+    let _grayscale = Grayscale(crossterm::style::Colored::ansi_color_disabled_memoized());
+    crossterm::style::force_color_output(true);
     let mut terminal = ratatui::try_init()?;
     struct Restore;
     impl Drop for Restore {
