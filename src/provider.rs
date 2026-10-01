@@ -28,6 +28,10 @@ pub struct Codex {
 pub fn generation_schema() -> schemars::Schema {
     schemars::generate::SchemaSettings::default()
         .for_serialize()
+        // Codex rejects annotations beside $ref (e.g. a field's description).
+        // This contract is nonrecursive, so inline types preserve all bounds
+        // and descriptions without ref siblings or unsupported allOf wrappers.
+        .with(|settings| settings.inline_subschemas = true)
         .into_generator()
         .into_root_schema_for::<GeneratedRep>()
 }

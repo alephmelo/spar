@@ -335,6 +335,21 @@ impl App {
         } else {
             self.rep = None;
             self.attempt = None;
+            self.code = CodeEditor::new("", self.profile.language);
+            self.tests = CodeEditor::new("", self.profile.language);
+            self.code
+                .set_placeholder("Your next rep's code will appear here.");
+            self.tests
+                .set_placeholder("Tests become editable when a rep is ready.");
+            self.result = None;
+            self.results_stale = false;
+            self.show_solution = false;
+            self.showing_history = false;
+            self.overlay = None;
+            self.active = Duration::ZERO;
+            self.brief_scroll = 0;
+            self.results_scroll = 0;
+            self.output_scroll = 0;
             self.prepare(store);
         }
         Ok(())
@@ -791,10 +806,7 @@ impl App {
             }
         }
         if self.focus == Pane::Code || self.focus == Pane::Tests {
-            let readonly = self.done()
-                || self.job.is_some()
-                || (self.focus == Pane::Code
-                    && self.rep.as_ref().is_some_and(|r| r.mode == Mode::Test));
+            let readonly = !self.editable(self.focus);
             if readonly {
                 match key.code {
                     KeyCode::Up => self.scroll_editor(-1),
@@ -961,7 +973,7 @@ impl App {
                 .attempt
                 .as_ref()
                 .map(|a| a.assistance())
-                .unwrap_or("Independent");
+                .unwrap_or("No active rep");
             frame.render_widget(
                 Paragraph::new(vec![
                     Line::styled(
@@ -1029,7 +1041,7 @@ impl App {
             &mut self.brief_scroll,
         );
         let language = self.profile.language;
-        let frozen = self.done() || self.job.is_some();
+        let frozen = self.rep.is_none() || self.done() || self.job.is_some();
         let code_readonly = frozen || self.rep.as_ref().is_some_and(|r| r.mode == Mode::Test);
         self.code.render(
             frame,
@@ -1103,7 +1115,9 @@ impl App {
         );
         let modified = self.code.modified() || self.tests.modified();
         frame.render_widget(
-            Paragraph::new(if modified {
+            Paragraph::new(if self.attempt.is_none() {
+                "No active rep"
+            } else if modified {
                 "● Unsaved edits"
             } else {
                 "✓ Saved locally"
