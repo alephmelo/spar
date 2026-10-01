@@ -37,11 +37,17 @@ The schema has distinct fields; do not put a formatted whole problem inside brie
 - family: lowercase kebab-case scenario ID.
 - brief.summary: one short plain-text paragraph describing the scenario.
 - brief.input/output: JSON kind plus a concise description of fields/elements and their types.
-- brief.constraints: short plain-text domain rules, bounds, units and relevant edge behavior.
+- brief.constraints: guarantees about incoming input shape, bounds and units. Inputs in
+  examples and checks MUST satisfy these guarantees, including malformed-data cases.
+  Validation/rejection rules and edge-case outcomes belong in requirements, not guarantees.
 The app supplies the function interface, mode-specific task, headings and examples.
 Prose fields are single paragraphs, at most 320 UTF-8 bytes: no newlines, code fences,
 Input:/Output:/Examples: blocks or complete solution code. Put example payloads ONLY in examples.
-Requirements specify observable outcomes; domain rules belong in constraints. Avoid redundant
+Requirements specify observable outcomes. Explicitly state what can be malformed and the
+required result; distinguish that from inputs the caller guarantees. Do not say inputs
+contain only valid characters and then check rejection of other characters. Define empty
+input, whitespace and duplicate behavior when relevant, without making the learner infer it
+from starter code. Avoid redundant
 requirements such as three separate IDs for below/equal/above one threshold rule.
 Use unique requirement IDs R1 through R6, in order, and map every check/mutant to an existing ID.
 Every requirement must have an acceptance check; ensure checks really exercise every claimed
@@ -51,8 +57,13 @@ examples contains 1–3 distinct small cases. input_json/output_json are strings
 valid JSON values of the declared input/output kinds. Prefer short inputs, explanations of
 at most one sentence, one ordinary case and one informative edge case. These are the sole
 source of visible example assertions; do not return visible_tests or duplicate examples in prose.
-checks contains 1–10 additional acceptance checks. Exercise at least one relevant case beyond
-the examples. No hidden requirements: all checked behavior must follow from the visible spec.
+checks contains 1–10 additional acceptance checks. Each has a unique short name describing
+one specific behavior, e.g. "Leading empty token" or "Preserve duplicate tags". These names
+are shown in the brief and results before any hint; no code edits or solution spoilers.
+Use one focused scenario per check, rather than bundling unrelated cases into a single
+anonymous assertion group. Exercise at least one relevant case beyond the examples.
+No hidden requirements: names and checked behavior must follow from the visible spec.
+Names describe existing requirements; they must not introduce additional rules.
 hints has exactly three stages: concept, strategy, solution. The first directs attention,
 the second suggests how to investigate, and only the third may give the edit or complete answer.
 explanation briefly explains the reasoning after the attempt.

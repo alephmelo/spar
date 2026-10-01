@@ -53,6 +53,30 @@ impl fmt::Display for Mode {
     }
 }
 
+impl Mode {
+    pub fn task_label(self) -> &'static str {
+        match self {
+            Self::Build => "Build: implement",
+            Self::Debug => "Debug: fix a bug",
+            Self::Test => "Test: write tests",
+        }
+    }
+
+    pub fn starting_point(self) -> &'static str {
+        match self {
+            Self::Build => {
+                "You get a function stub. Implement the required behavior; the starter is expected to fail checks."
+            }
+            Self::Debug => {
+                "You get an implementation with one intentional bug. It may already pass some checks. Fix it and add a regression test."
+            }
+            Self::Test => {
+                "You get a correct, read-only implementation. Write tests that pass it and catch the hidden buggy versions."
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
     pub name: String,
@@ -73,7 +97,22 @@ pub struct Requirement {
 #[serde(deny_unknown_fields)]
 pub struct Check {
     pub requirement: String,
+    /// Learner-visible behavior label; absent in older cached reps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     pub code: String,
+}
+
+impl Check {
+    pub fn label(&self, index: usize) -> String {
+        format!(
+            "{} · {}",
+            self.requirement,
+            self.name
+                .clone()
+                .unwrap_or_else(|| format!("check {}", index + 1))
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -224,6 +263,18 @@ impl Rep {
                 self.checks.iter().any(|c| c.requirement == req.id),
                 "Requirement has no check"
             );
+        }
+        let mut names = std::collections::HashSet::new();
+        for check in &self.checks {
+            if let Some(name) = &check.name {
+                ensure!(
+                    !name.trim().is_empty()
+                        && name.len() <= 100
+                        && !name.chars().any(char::is_control)
+                        && names.insert(name.trim().to_lowercase()),
+                    "Check names must be unique, nonempty single lines of at most 100 bytes"
+                );
+            }
         }
         for (id, code) in self
             .checks

@@ -19,7 +19,9 @@ use ratatui::{
     prelude::*,
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
+mod brief;
 mod editor;
+mod syntax;
 use editor::CodeEditor;
 use std::{
     io,
@@ -98,6 +100,7 @@ struct App {
     tests: CodeEditor,
     focus: Pane,
     brief_scroll: u16,
+    brief_cache: brief::Cache,
     results_scroll: u16,
     output_scroll: u16,
     results_stale: bool,
@@ -256,6 +259,7 @@ impl App {
             tests: CodeEditor::new("", language),
             focus: Pane::Code,
             brief_scroll: 0,
+            brief_cache: brief::Cache::default(),
             results_scroll: 0,
             output_scroll: 0,
             results_stale: false,
@@ -946,7 +950,7 @@ impl App {
                 format!(
                     "{} · {} · ~{} min    {}m {:02}s active",
                     r.language,
-                    r.mode,
+                    r.mode.task_label(),
                     r.minutes,
                     self.active.as_secs() / 60,
                     self.active.as_secs() % 60
@@ -1035,7 +1039,7 @@ impl App {
         };
         draw_document(
             frame,
-            self.brief_text(),
+            self.brief_text(brief.width.saturating_sub(2)),
             brief,
             block(" 1 Brief ".into(), Pane::Brief),
             &mut self.brief_scroll,
@@ -1195,32 +1199,9 @@ impl App {
             );
         }
     }
-    fn brief_text(&self) -> Text<'static> {
-        let mut lines = Vec::new();
-        for line in self.brief().lines() {
-            if line == "REQUIREMENTS"
-                || line.starts_with("HINT ")
-                || line.starts_with("EXAMPLE")
-                || line == "YOUR TASK"
-                || matches!(line, "INTERFACE" | "INPUT" | "OUTPUT" | "CONSTRAINTS")
-            {
-                lines.push(Line::styled(
-                    line.to_owned(),
-                    Style::default().fg(ACCENT).bold(),
-                ));
-            } else if let Some((id, description)) = line.split_once("  ")
-                && id.starts_with('R')
-                && id[1..].chars().all(|c| c.is_ascii_digit())
-            {
-                lines.push(Line::from(vec![
-                    Span::styled(format!("{id}  "), Style::default().fg(INFO).bold()),
-                    Span::raw(description.to_owned()),
-                ]));
-            } else {
-                lines.push(Line::raw(line.to_owned()));
-            }
-        }
-        Text::from(lines)
+    fn brief_text(&mut self, width: u16) -> Text<'static> {
+        self.brief_cache
+            .render(self.brief(), self.profile.language, width)
     }
     fn output_text(&self) -> Text<'static> {
         let mut lines = Vec::new();
@@ -1312,6 +1293,9 @@ impl App {
                 rep.hints[a.hints.min(rep.hints.len()) - 1]
             ));
         }
+        text.push_str("STARTING POINT\n");
+        text.push_str(rep.mode.starting_point());
+        text.push_str("\n\n");
         text.push_str(&rep.brief);
         if rep.examples.is_empty() {
             text.push_str(&format!("\n\nEXAMPLES\n{}", rep.visible_tests.trim()));
@@ -1330,21 +1314,22 @@ impl App {
         for req in &rep.requirements {
             text.push_str(&format!("\n{}  {}", req.id, req.description));
         }
+        if rep.checks.iter().any(|check| check.name.is_some()) {
+            text.push_str("\n\nCHECK COVERAGE\nThe examples plus these behaviors are checked:\n");
+            for (index, check) in rep.checks.iter().enumerate() {
+                text.push_str(&format!("• {}\n", check.label(index)));
+            }
+        }
         text.push_str("\n\nYOUR TESTS\n");
-        text.push_str(if rep.mode == Mode::Build {
-            "Optional: add your own checks in Tests.\n"
-        } else {
-            "Write your own assertions in Tests.\n"
+        text.push_str(match rep.mode {
+            Mode::Build => "Optional: add your own checks in Tests.\n",
+            Mode::Debug => "Required: add a regression test that passes your fix and fails the original implementation.\n",
+            Mode::Test => "Required: write tests that pass the provided implementation and catch every hidden buggy version.\n",
         });
         text.push_str(match rep.language {
             Language::Python => "assert solve(value) == expected\nF5 runs checks. print output appears in Output.\n",
             Language::Typescript => "assert.deepEqual(solve(value), expected);\nF5 runs checks. console.log output appears in Output.\n",
         });
-        if rep.mode == Mode::Test {
-            text.push_str(
-                "\nCode is read-only for this rep. Add tests that catch the hidden bugs.\n",
-            );
-        }
         if let Some(a) = &self.attempt {
             for (i, hint) in rep.hints.iter().take(a.hints.saturating_sub(1)).enumerate() {
                 text.push_str(&format!("\nHINT {}\n{}\n", i + 1, hint));

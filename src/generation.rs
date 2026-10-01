@@ -7,7 +7,7 @@ use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de::Error};
 
-pub const CONTRACT_VERSION: &str = "generation-v4";
+pub const CONTRACT_VERSION: &str = "generation-v5";
 
 fn prose(value: &str) -> bool {
     !value.chars().any(char::is_control)
@@ -115,7 +115,7 @@ pub struct Brief {
     pub summary: Prose,
     pub input: ValueSpec,
     pub output: ValueSpec,
-    /// Input bounds, units, ordering and edge behavior; examples belong elsewhere.
+    /// Guaranteed input bounds/types and units. Rejection rules belong in requirements.
     #[schemars(length(min = 1, max = 4))]
     pub constraints: Vec<Prose>,
 }
@@ -131,6 +131,8 @@ pub struct GeneratedRequirement {
 #[serde(deny_unknown_fields)]
 pub struct GeneratedCheck {
     pub requirement: RequirementId,
+    /// Short learner-visible name for the behavior checked, without solution hints.
+    pub name: Title,
     /// Executable assertion statements; solve is supplied by the runner.
     pub code: Source,
 }
@@ -225,7 +227,12 @@ impl GeneratedRep {
         .chain(self.requirements.iter().map(|r| &r.description))
         .chain(self.examples.iter().map(|e| &e.explanation))
         .map(|text| text.0.split_whitespace().count())
-        .sum::<usize>();
+        .sum::<usize>()
+            + self
+                .checks
+                .iter()
+                .map(|c| c.name.0.split_whitespace().count())
+                .sum::<usize>();
         ensure!(
             reading_words
                 <= if objective.compact_presentation {
@@ -272,7 +279,7 @@ impl GeneratedRep {
             Language::Typescript => "export function solve(value)",
         };
         let brief = format!(
-            "{}\n\nYOUR TASK\n{task}\n\nINTERFACE\n{interface}\n\nINPUT\n{}: {}\n\nOUTPUT\n{}: {}\n\nCONSTRAINTS\n{}",
+            "{}\n\nYOUR TASK\n{task}\n\nINTERFACE\n{interface}\n\nINPUT\n{}: {}\n\nOUTPUT\n{}: {}\n\nINPUT GUARANTEES\n{}",
             self.brief.summary.0,
             self.brief.input.kind.label(),
             self.brief.input.description.0,
@@ -313,6 +320,7 @@ impl GeneratedRep {
                 .into_iter()
                 .map(|c| Check {
                     requirement: c.requirement.label(),
+                    name: Some(c.name.0),
                     code: c.code.0,
                 })
                 .collect(),

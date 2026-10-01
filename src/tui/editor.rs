@@ -1,4 +1,5 @@
 //! Modeless editing with cached, stateful syntax highlighting.
+use super::syntax::{self, SYNTAXES, THEME};
 use super::{ACCENT, BG, INK, MUTED, PANEL};
 use crate::model::Language;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
@@ -7,63 +8,7 @@ use edtui::{
     LineNumbers, Lines, RowIndex, actions::SwitchMode,
 };
 use ratatui::{prelude::*, widgets::Block};
-use std::sync::LazyLock;
-use syntect::{
-    easy::HighlightLines,
-    highlighting::{
-        Color as SyntaxColor, FontStyle, StyleModifier, Theme, ThemeItem, ThemeSettings,
-    },
-    parsing::SyntaxSet,
-};
-
-static SYNTAXES: LazyLock<SyntaxSet> = LazyLock::new(two_face::syntax::extra_newlines);
-static THEME: LazyLock<Theme> = LazyLock::new(|| {
-    let gray = |value| SyntaxColor {
-        r: value,
-        g: value,
-        b: value,
-        a: 255,
-    };
-    // Deliberate scope styles retain syntax distinctions without relying on hue.
-    let rules = [
-        ("punctuation", 176, FontStyle::empty()),
-        ("string", 192, FontStyle::empty()),
-        ("constant, support.constant", 240, FontStyle::BOLD),
-        (
-            "entity.name.function, entity.name.type, support.function, support.type",
-            240,
-            FontStyle::BOLD,
-        ),
-        ("variable.parameter", 224, FontStyle::ITALIC),
-        ("keyword, storage", 255, FontStyle::BOLD),
-        ("keyword.operator", 208, FontStyle::empty()),
-        (
-            "comment, punctuation.definition.comment",
-            152,
-            FontStyle::ITALIC,
-        ),
-    ];
-    Theme {
-        name: Some("Spar grayscale".into()),
-        settings: ThemeSettings {
-            foreground: Some(gray(224)),
-            background: Some(gray(0)),
-            ..ThemeSettings::default()
-        },
-        scopes: rules
-            .into_iter()
-            .map(|(scope, brightness, font_style)| ThemeItem {
-                scope: scope.parse().expect("valid bundled syntax scope"),
-                style: StyleModifier {
-                    foreground: Some(gray(brightness)),
-                    font_style: Some(font_style),
-                    ..StyleModifier::default()
-                },
-            })
-            .collect(),
-        ..Theme::default()
-    }
-});
+use syntect::easy::HighlightLines;
 const MAX_SOURCE: usize = 32_000;
 
 #[derive(Clone)]
@@ -418,11 +363,7 @@ impl CodeEditor {
     }
 
     fn highlight(&mut self) {
-        let extension = if self.language == Language::Python {
-            "py"
-        } else {
-            "ts"
-        };
+        let extension = syntax::extension(self.language);
         let syntax = SYNTAXES
             .find_syntax_by_extension(extension)
             .unwrap_or_else(|| SYNTAXES.find_syntax_plain_text());
@@ -436,27 +377,10 @@ impl CodeEditor {
                 for (style, token) in tokens {
                     let len = token.trim_end_matches('\n').chars().count();
                     if len > 0 {
-                        let mut modifiers = Modifier::empty();
-                        for (syntax, terminal) in [
-                            (FontStyle::BOLD, Modifier::BOLD),
-                            (FontStyle::ITALIC, Modifier::ITALIC),
-                            (FontStyle::UNDERLINE, Modifier::UNDERLINED),
-                        ] {
-                            if style.font_style.contains(syntax) {
-                                modifiers.insert(terminal);
-                            }
-                        }
                         self.syntax.push(Highlight::new(
                             Index2::new(row, col),
                             Index2::new(row, col + len - 1),
-                            Style::default()
-                                .fg(Color::Rgb(
-                                    style.foreground.r,
-                                    style.foreground.g,
-                                    style.foreground.b,
-                                ))
-                                .bg(BG)
-                                .add_modifier(modifiers),
+                            syntax::terminal_style(style),
                         ));
                         col += len;
                     }

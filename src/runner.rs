@@ -464,12 +464,7 @@ fn acceptance(rep: &Rep) -> Vec<(String, String)> {
     rep.checks
         .iter()
         .enumerate()
-        .map(|(i, c)| {
-            (
-                format!("{} · check {}", c.requirement, i + 1),
-                c.code.clone(),
-            )
-        })
+        .map(|(i, c)| (c.label(i), c.code.clone()))
         .collect()
 }
 

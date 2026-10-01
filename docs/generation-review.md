@@ -1,5 +1,23 @@
 # Generation review — 2026-09-30
 
+## Clarity follow-up — 2026-10-01
+
+Read-only inspection of “Event Tags” found a Debug starter with one intentional
+bug, two visible examples and three acceptance-check groups. One group bundled
+three empty-token cases; another bundled empty input and invalid-character cases.
+Those cases followed the visible spec, but the anonymous check numbers concealed
+what each result represented. Input constraints also mixed caller guarantees with
+rejection rules. The user expected a clearly labeled mix of Build, Debug and Test.
+
+The TUI now explains the starting point and completion task for each mode, including
+why Debug starters already pass some checks. Generation v5 requires a unique,
+bounded behavior name for every check; names appear in the brief and run results.
+The prompt asks for one focused scenario per check and separates input guarantees
+from required malformed-input behavior. Check labels count toward the reading budget.
+Existing packages keep their original check numbers and requirements. No fresh
+generation or exercise execution was performed for this follow-up; semantic
+alignment of the new labels with actual checks still needs generation evaluation.
+
 ## Follow-up — 2026-10-01
 
 The five saved packages still all target boundaries. The latest, “Validation
