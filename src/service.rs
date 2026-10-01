@@ -106,6 +106,7 @@ pub fn prepare(
                             family: rep.family.clone(),
                             mode: rep.mode,
                             design: rep.design,
+                            topic: rep.topic,
                         },
                     );
                     history.insert(

@@ -28,6 +28,8 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Commands {
+    /// List the built-in practice categories and subtopics without a model call.
+    Topics,
     /// Set up a practice profile; each language keeps its own history.
     Init {
         #[arg(long)]
@@ -148,6 +150,26 @@ fn profile(store: &Store) -> Result<Profile> {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if matches!(cli.command, Some(Commands::Topics)) {
+        let mut category = None;
+        for topic in spar::topics::CATALOG {
+            if category != Some(topic.category) {
+                let label = serde_json::to_string(&topic.category)?;
+                println!("\n{}", label.trim_matches('"').replace('-', " "));
+                category = Some(topic.category);
+            }
+            let id = serde_json::to_string(&topic.id)?;
+            println!(
+                "  {} ({}+ min)\n    {}\n    Skills: {}",
+                id.trim_matches('"'),
+                topic.min_minutes,
+                topic.description,
+                topic.skills.join(", ")
+            );
+        }
+        println!("\nAll topics also support test-writing reps.");
+        return Ok(());
+    }
     let cancel = process::cancel_token();
     let signal_cancel = cancel.clone();
     ctrlc::set_handler(move || {
@@ -173,6 +195,7 @@ fn main() -> Result<()> {
     }
     let mut store = Store::open(cli.data_dir.as_deref())?;
     match cli.command {
+        Some(Commands::Topics) => unreachable!("topics handled before opening storage"),
         Some(Commands::Init {
             name,
             language,

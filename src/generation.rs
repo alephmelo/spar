@@ -7,7 +7,7 @@ use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de::Error};
 
-pub const CONTRACT_VERSION: &str = "generation-v3";
+pub const CONTRACT_VERSION: &str = "generation-v4";
 
 fn prose(value: &str) -> bool {
     !value.chars().any(char::is_control)
@@ -167,6 +167,8 @@ pub struct Hints {
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratedRep {
+    /// Select exactly one ID from objective.topic_candidates; do not combine topics.
+    pub topic: crate::topics::TopicId,
     pub title: Title,
     pub family: Family,
     pub brief: Brief,
@@ -187,6 +189,13 @@ pub struct GeneratedRep {
 
 impl GeneratedRep {
     pub fn into_rep(self, profile: &Profile, objective: &Objective) -> Result<Rep> {
+        ensure!(
+            objective
+                .topic_candidates
+                .iter()
+                .any(|candidate| candidate.id == self.topic),
+            "Exercise topic is not in the requested shortlist"
+        );
         ensure!(
             (1..=4).contains(&self.brief.constraints.len()),
             "Expected 1–4 constraints"
@@ -323,7 +332,8 @@ impl GeneratedRep {
                 })
                 .collect(),
             explanation: self.explanation.0,
-            design: Some(objective.design),
+            design: None,
+            topic: Some(self.topic),
         };
         rep.validate()?;
         Ok(rep)

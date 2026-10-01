@@ -36,6 +36,27 @@ pub fn generation_schema() -> schemars::Schema {
         .into_root_schema_for::<GeneratedRep>()
 }
 
+/// Restrict the response enum to this request's shortlist, then validate again
+/// during conversion. Category cannot disagree with the selected subtopic ID.
+pub fn generation_schema_for(objective: &Objective) -> Result<serde_json::Value> {
+    ensure!(
+        (1..=3).contains(&objective.topic_candidates.len()),
+        "Generation requires a shortlist of 1–3 topics"
+    );
+    let mut schema = generation_schema().to_value();
+    let topic = schema
+        .pointer_mut("/properties/topic")
+        .context("Generation schema is missing its topic field")?;
+    topic["enum"] = serde_json::to_value(
+        objective
+            .topic_candidates
+            .iter()
+            .map(|candidate| candidate.id)
+            .collect::<Vec<_>>(),
+    )?;
+    Ok(schema)
+}
+
 #[derive(Debug)]
 struct GenerationFailure {
     message: String,
@@ -239,7 +260,10 @@ impl Provider for Codex {
         let dir = tempfile::tempdir()?;
         let schema = dir.path().join("rep.schema.json");
         let output = dir.path().join("rep.json");
-        std::fs::write(&schema, serde_json::to_vec(&generation_schema())?)?;
+        std::fs::write(
+            &schema,
+            serde_json::to_vec(&generation_schema_for(objective)?)?,
+        )?;
         let prompt = format!(
             "{}\nREQUEST DATA:\n{}",
             include_str!("../assets/generation.txt"),

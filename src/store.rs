@@ -152,6 +152,7 @@ impl Store {
                     family: rep.family,
                     mode: rep.mode,
                     design: rep.design,
+                    topic: rep.topic,
                 })
             })
             .collect()

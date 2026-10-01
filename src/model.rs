@@ -137,6 +137,9 @@ pub struct Rep {
     /// App-selected variety metadata; absent in older cached packages.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub design: Option<crate::scheduler::RepDesign>,
+    /// Model-selected subtopic from the app shortlist; category is derived from ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub topic: Option<crate::topics::TopicId>,
 }
 
 impl Rep {

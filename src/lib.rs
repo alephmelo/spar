@@ -7,4 +7,5 @@ pub mod runner;
 pub mod scheduler;
 pub mod service;
 pub mod store;
+pub mod topics;
 pub mod tui;

@@ -9,19 +9,16 @@ Choose one meaningful decision and a practical scenario matching profile.interes
 Avoid objective.avoid_families, including cosmetic renames of the same scenario. A short
 warm-up is fine, but experienced/rusty learners should reason about behavior, not repeatedly
 swap a comparison operator. Revisit the skill through a fresh operation or data shape.
-Follow objective.design.shape and objective.design.scenario: Spar chose these for variety.
-- chunking: partition data, including an incomplete final chunk.
-- intervals: reason about ranges, overlap or membership.
-- thresholds: a single inclusive/exclusive threshold rule.
-- retry-limits: bounded attempts or a backoff schedule using explicit input values.
-- grouping: combine related records without losing the specified order.
-- stable-deduplication: choose which repeated entries survive.
-- top-selection: select a small bounded subset with an explicit tie rule.
-- normalization: normalize values under one clear policy.
-- projection: reshape records while preserving specified information.
-- fallback: choose a fallback for missing/failed values under one policy.
-- validation: distinguish accepted input records from rejected ones under one policy.
-The shape must change the operation the learner works on, not just the story or variable names.
+Select exactly one entry from objective.topic_candidates and return its id in topic.
+These are a small locally sampled shortlist of category/subcategory operations, already
+filtered for the scheduled skill and duration. Follow the chosen entry's description.
+The operation must be central to the code and acceptance checks, not just a label or story.
+Do not combine candidates. Fit the skill to the chosen operation (e.g. boundary handling
+in token parsing), rather than turn every option into a numeric threshold or batch problem.
+Use profile.interests only to give that operation useful context. Backend/data processing
+interests do not imply batching. Batching/chunking is allowed only for partitioning.
+For trees, graphs and dynamic programming, provide the requested scaffolding and keep the
+learner's work to one decision. Do not demand a complete unfamiliar algorithm in five minutes.
 Honor objective.variation. Do not enlarge the rep just to make it feel harder.
 
 objective.recent_feedback describes exercise defects/preferences, NOT learner skill failures.
@@ -35,6 +32,7 @@ If previous_validation_failure is non-null, correct that specific rejection on t
 
 RESPONSE CONTRACT
 The schema has distinct fields; do not put a formatted whole problem inside brief.summary.
+- topic: exactly one of the IDs in objective.topic_candidates; the schema limits this enum.
 - title: short, neutral, no fix/operator spoiler.
 - family: lowercase kebab-case scenario ID.
 - brief.summary: one short plain-text paragraph describing the scenario.

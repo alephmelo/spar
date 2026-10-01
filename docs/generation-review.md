@@ -1,5 +1,34 @@
 # Generation review — 2026-09-30
 
+## Follow-up — 2026-10-01
+
+The five saved packages still all target boundaries. The latest, “Validation
+Batches”, was requested as chunking/backend-validation: varying the scenario had
+not removed batching as the operation. Fixed-order tie breaking and a small
+scenario catalog were additional sources of repetition.
+
+Generation v4 replaces shape/scenario selection with 33 curated subtopics across
+10 categories. The structure takes inspiration from distinct algorithmic
+operations in LeetCode problems such as [binary search](https://leetcode.com/problems/binary-search/)
+and [delimiter matching](https://leetcode.com/problems/valid-parentheses/), alongside
+practical parsing, configuration and state-handling topics. It does not import
+LeetCode problem statements or use its difficulty labels as duration estimates.
+
+The CLI randomly shortlists one subtopic from each of three different categories,
+filtered by skill and duration. Recent topics/categories cool down and older use
+reduces sampling weight. The model returns one typed ID constrained by a
+request-specific schema enum, checked again locally and saved with the package.
+Batching is allowed only for partitioning. Profile interests contextualize the
+chosen operation rather than biasing category selection. `spar topics` exposes
+the complete catalog without a model call.
+
+This follow-up changes future generation only; existing packages and attempts are
+untouched. The selected ID is still a model declaration, not proof of semantic
+adherence. No fresh generation or execution evaluation was performed for this
+follow-up; diversity and quality across modes/languages need subsequent evaluation.
+
+## Original review
+
 Scope: read-only inspection of the three locally stored generated packages, their
 admission provenance and attempt outcomes. The packages were generated September
 27–29; all were recorded as Apple-container validated. This review did not rerun

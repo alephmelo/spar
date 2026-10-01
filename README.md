@@ -96,13 +96,30 @@ The scheduler chooses the skill and mode before requesting generation. It revisi
 
 ### Typed generation contract
 
-Freshness is scheduled locally. Before each generation, Spar chooses an exercise shape (for example chunking, intervals, grouping or stable deduplication) appropriate to the selected skill, and a practical scenario. The last 12 packages count, including queued and unfinished reps. Shapes have a two-rep cooldown; recent scenarios and shape/scenario pairs receive recency penalties, with a small preference for selected interests. After two reps in the same Build/Debug mode, generation switches mode; due Test reps keep priority. New packages store the requested shape/scenario so renaming a family does not reset the history. Legacy family names provide only conservative scheduling hints.
+Freshness is scheduled locally from a hard-coded catalog of **10 categories and 33 subtopics**. Run `spar topics` to see every ID, description, skill mapping and minimum session length; it needs no profile or model call.
+
+| Category | Subtopics |
+| --- | --- |
+| Arrays | Partitioning, sliding windows, prefix sums, two pointers |
+| Strings | Normalization, token parsing, run-length encoding |
+| Maps and sets | Frequency counting, grouping, stable deduplication, lookup joins |
+| Searching and sorting | Binary search, stable ranking, sorted merge |
+| Stacks and queues | Delimiter matching, undo operations, queue simulation |
+| Trees | Leaf traversal, depth |
+| Graphs | Reachability, cycle detection |
+| Dynamic programming | Rolling recurrence, grid paths, minimum cost |
+| Numbers and bits | Digit operations, integer division, bit flags |
+| Application logic | State transitions, configuration fallback, record validation, interval overlap, retry policy, cache expiry |
+
+For each generation, Spar filters by the scheduled skill and session length, then randomly samples **three different categories and one subtopic from each**. Categories with many entries do not get extra chances. Subtopics used in the previous two reps are excluded, and the latest category is excluded when at least three others remain. Older use within the last 12 packages reduces sampling weight. Queued, active, completed and replaced reps all count for freshness, independently of proficiency. A narrower future catalog can relax cooldowns to keep generation available.
+
+The model chooses exactly one shortlisted ID. The request's response schema limits the enum to those IDs, and local conversion checks membership again. The ID has one fixed category, so inconsistent category/subcategory pairs cannot be returned. Accepted packages store that selection for future scheduling. Older design metadata and family names provide conservative hints. Interests supply the scenario around the operation; “backend” no longer preferentially selects a small scenario pool. Batching is explicitly confined to partitioning. Five-minute tree/graph/recurrence reps require scaffolding; larger topics require ten-minute sessions. After two reps in the same Build/Debug mode, generation switches mode; due Test reps keep priority.
 
 The provider response uses a dedicated `GeneratedRep` Rust type and JSON Schema, separate from the stored package format. Every object rejects unknown fields and requires its declared fields. Bounded text/source/JSON-string types validate again during deserialization; requirement IDs are `R1`–`R6`, input/output JSON kinds are enums, and hints have named `concept`, `strategy`, and `solution` stages.
 
 Briefs have separate summary, input, output and constraint fields. Spar supplies headings and task instructions. Examples are rendered once and their executable assertions are derived by the app. The response cannot override the scheduled language, skill, mode or duration. Admission also checks example JSON kinds, duplicate inputs, consecutive requirement IDs, reference mappings, recent family reuse and reading limits (220 words for compact presentation, otherwise 360; example JSON and app-supplied instructions excluded). Python example comparison distinguishes booleans from numbers, including nested values.
 
-If the first package fails validation, the bounded retry receives the rejection reason. New provenance includes `generation-v3`; accepted responses are converted to the existing format-v2 package, so cached v1/v2 reps and current attempts remain readable and keep their original requirements. See [the generation review](docs/generation-review.md) for the findings that drove this contract. Structural validation cannot prove that a scenario or reference solution is correct; execution and the broken-rep action remain necessary.
+If the first package fails validation, the bounded retry receives the rejection reason and the same shortlist. New provenance includes `generation-v4`; accepted responses are converted to the existing format-v2 package, so cached v1/v2 reps and current attempts remain readable and keep their original requirements. See [the generation review](docs/generation-review.md) for the findings that drove this contract. Structural validation cannot prove that the code implements its declared topic or that a reference solution is correct; execution and the broken-rep action remain necessary.
 
 ## Data and execution
 
